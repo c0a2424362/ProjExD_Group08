@@ -124,7 +124,6 @@ class Report(pg.sprite.Sprite):
         self.rect.y += self.speed
         if self.rect.top > HEIGHT:
             self.kill()
-
 # --- グループ定義 ---
 all_sprites = pg.sprite.Group()
 pencils = pg.sprite.Group()
