@@ -35,6 +35,8 @@ report_path = os.path.join(img_dir, "report.png")
 lunch_path = os.path.join(img_dir, "lunch.png")  # 追加 C0A24151
 gameover_path = os.path.join(img_dir, "gameover.png")
 clear_path = os.path.join(img_dir, "clear.png")
+lunch_path = os.path.join(img_dir, "lunch.png") #追加C0A24151
+gameover_path = os.path.join(img_dir, "gameover.png")  
 
 # --- 画像読み込み ---
 try:
@@ -46,6 +48,8 @@ try:
     lunch_img = load_image(lunch_path)
     gameover_img = load_image(gameover_path, required=False)
     clear_img = load_image(clear_path, required=False)
+    lunch_img = load_image(lunch_path, required=False) #追加C0A24151
+    gameover_img = load_image(gameover_path, required=False)  
 except FileNotFoundError as e:
     print(e)
     pg.quit()
@@ -67,6 +71,9 @@ else:
 
 # --- ゲームオーバー・クリア画像の比率維持＆中央配置 ---
 gameover_rect = None
+# --- クラス定義（Player.update は引数なし） ---
+# ゲームオーバー画像は「比率維持で拡大→中央に配置」 
+gameover_rect = None  
 if gameover_img:
     src_rect = gameover_img.get_rect()
     scale = max(WIDTH / src_rect.width, HEIGHT / src_rect.height)
@@ -211,6 +218,30 @@ boss_spawn_time = 20 * 60  # 20秒後に出現（60fps換算）
 
 
 
+lunches = pg.sprite.Group() #追加C0A24151
+# --- ゲーム初期化関数 ---
+def reset_game():
+    """ゲームを初期化して再スタート"""
+    global all_sprites, pencils, enemies, enemy_reports, player, score, running
+    all_sprites = pg.sprite.Group()
+    pencils = pg.sprite.Group()
+    enemies = pg.sprite.Group()
+    enemy_reports = pg.sprite.Group()
+
+    player = Player()
+    all_sprites.add(player)
+
+    for i in range(5):
+        e = Enemy()
+        enemies.add(e)
+        all_sprites.add(e)
+
+    score = 0
+    running = True
+
+# --- 初期化 ---
+reset_game()
+target_score = 30
 
 # --- ゲーム初期化 ---
 def reset_game():
@@ -224,6 +255,38 @@ def reset_game():
 
     player = Player()
     all_sprites.add(player)
+# --- メインループ ---
+while True:  # リスタート対応
+    # --- ゲームプレイ中 ---
+    while running:
+        clock.tick(60)
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                pg.quit()
+                sys.exit()
+            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
+                pencil = Pencil(player.rect.centerx, player.rect.top)
+                all_sprites.add(pencil)
+                pencils.add(pencil)
+
+        all_sprites.update()
+
+        # 衝突判定
+        hits = pg.sprite.groupcollide(enemies, pencils, True, True)
+        for hit in hits:
+            score += 1
+            e = Enemy()
+            enemies.add(e)
+            all_sprites.add(e)
+
+        if pg.sprite.spritecollideany(player, enemy_reports):
+            result = "gameover"
+            running = False
+        if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
+            # スペースで鉛筆弾を作り、グループへ追加
+            pencil = Pencil(player.rect.centerx, player.rect.top)
+            all_sprites.add(pencil)
+            pencils.add(pencil)
     
 
     for i in range(5):
@@ -345,6 +408,47 @@ while True:
         text1 = font.render("おめでとう！卒業おめでとう！", True, (255, 255, 0))
         text2 = font.render(f"Score: {score}", True, (255, 255, 255))
     else:
+            pickup_msg = "🍛 お腹いっぱい！（上限）"
+        pickup_timer = 60  # 1秒表示
+
+    # 描画
+    screen.blit(background, (0, 0))
+    all_sprites.draw(screen)
+
+    # スコア
+    score_text = font.render(f"単位: {score}", True, (255, 255, 255))
+    screen.blit(score_text, (10, 10))
+
+    #追加C0A24151
+    # HP表示（ハート）：例 ♥♥♡
+    hearts = "♥" * player.hp + "♡" * (player.max_hp - player.hp)
+    hp_text = font.render(f"HP: {hearts}", True, (255, 160, 160))
+    screen.blit(hp_text, (10, 60))
+    # 取得メッセージ
+    if pickup_timer > 0:
+        msg_surf = font_small.render(pickup_msg, True, (255, 255, 0))
+        screen.blit(msg_surf, (WIDTH//2 - msg_surf.get_width()//2, 16))
+        pickup_timer -= 1
+    
+
+        if score >= target_score:
+            result = "clear"
+            running = False
+
+        # 描画
+        screen.blit(background, (0, 0))
+        all_sprites.draw(screen)
+        score_text = font.render(f"単位: {score}", True, (255, 255, 255))
+        screen.blit(score_text, (10, 10))
+        pg.display.flip()
+
+    # --- クリア or ゲームオーバー画面 ---
+    if result == "clear":
+        screen.fill((0, 0, 0))
+        text1 = font.render("🎓 CONGRATULATIONS! 🎓", True, (0, 255, 0))
+        text2 = font.render("大学を卒業しました！", True, (255, 255, 255))
+    else:
+        # ゲームオーバー背景（比率維持・中央配置）
         if gameover_img and gameover_rect:
             screen.blit(gameover_img, gameover_rect)
         else:
@@ -362,6 +466,14 @@ while True:
         screen.blit(text2, (WIDTH // 2 - text2.get_width() // 2, HEIGHT // 2 - 60))
     screen.blit(text3, (WIDTH // 2 - text3.get_width() // 2, HEIGHT // 2 + 40))
 
+        text1 = font.render("GAME OVER", True, (255, 0, 0))
+        text2 = font.render(f"取得単位: {score}", True, (255, 255, 255))
+
+    text3 = font.render("Press any key to restart", True, (200, 200, 200))
+
+    screen.blit(text1, (WIDTH//2 - text1.get_width()//2 - 50, HEIGHT//2 - 100))
+    screen.blit(text2, (WIDTH//2 - text2.get_width()//2 - 50 , HEIGHT//2 - 30))
+    screen.blit(text3, (WIDTH//2 - text3.get_width()//2 - 50, HEIGHT//2 + 50))
     pg.display.flip()
 
     # --- リスタート待機 ---
